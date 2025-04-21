@@ -15,6 +15,7 @@ func TestGame0(t *testing.T) {
 					"\n\tresult:  ", answer,
 					"\n\texpected:", item.answer)
 			}
+
 		}
 	}
 }
