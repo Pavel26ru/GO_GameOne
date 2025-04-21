@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Инвентарь
 type Item struct {
 	Name        string
 	Description string
@@ -14,6 +15,7 @@ type Item struct {
 	CanUseOn    map[string]string
 }
 
+// Локация
 type Location struct {
 	Name        string
 	Description string
@@ -26,6 +28,7 @@ type Player struct {
 	Inventory       map[string]*Item
 }
 
+// Состояние игры
 type Game struct {
 	Locations   map[string]*Location
 	Player      *Player
