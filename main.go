@@ -311,6 +311,7 @@ func keys(m map[string]string) []string {
 	return result
 }
 
+// start the game
 func main() {
 	game := initGame()
 	scanner := bufio.NewScanner(os.Stdin)
