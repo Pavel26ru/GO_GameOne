@@ -320,6 +320,7 @@ func main() {
 		command := scanner.Text()
 		response := game.HandleCommand(command)
 		fmt.Println(response)
+
 		fmt.Println("Введите команду: ")
 	}
 }
