@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-// handleComand заменёна на метод HandleCommand
 func TestGame0(t *testing.T) {
 	for caseNum, commands := range game0cases {
 		game := initGame()
