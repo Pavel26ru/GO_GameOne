@@ -7,42 +7,37 @@ import (
 	"strings"
 )
 
-// Item представляет предмет в игре
 type Item struct {
 	Name        string
 	Description string
 	CanTake     bool
-	CanUseOn    map[string]string      // Возможные цели применения и результат
-	DisplayName string                 // Как предмет отображается в описании
-	OnUseEffect map[string]func(*Game) // Эффект при использовании предмета на цель
+	CanUseOn    map[string]string
+	DisplayName string
+	OnUseEffect map[string]func(*Game)
 }
 
-// Location представляет локацию
 type Location struct {
 	Name              string
 	Description       string
-	AltDescription    string // Альтернативное описание (например, для кухни, когда рюкзак надет)
-	GoDescription     string // Описание при переходе в локацию
+	AltDescription    string
+	GoDescription     string
 	Items             map[string]*Item
 	Exits             map[string]string
-	EmptyDescription  string // Описание, если нет предметов
-	RequiresCondition string // Условие для входа в локацию (например, "doorOpen")
+	EmptyDescription  string
+	RequiresCondition string
 }
 
-// Player представляет игрока
 type Player struct {
 	CurrentLocation *Location
 	Inventory       map[string]*Item
 }
 
-// Game представляет состояние игры
 type Game struct {
 	Locations   map[string]*Location
 	Player      *Player
 	GlobalFlags map[string]bool
 }
 
-// gameCase для тестов
 type gameCase struct {
 	step    int
 	command string
@@ -92,7 +87,6 @@ var game0cases = [][]gameCase{
 	},
 }
 
-// NewGame инициализирует игру
 func initGame() *Game {
 	items := map[string]*Item{
 		"рюкзак": {
@@ -183,17 +177,14 @@ func initGame() *Game {
 	}
 }
 
-// Look осматривает текущую локацию
 func (g *Game) Look() string {
 	loc := g.Player.CurrentLocation
 
-	// Собираем предметы
 	items := []string{}
 	for _, item := range loc.Items {
 		items = append(items, item.DisplayName)
 	}
 
-	// Формируем описание
 	var desc string
 	if len(items) == 0 {
 		desc = loc.EmptyDescription
@@ -223,14 +214,12 @@ func (g *Game) Look() string {
 		}
 	}
 
-	// Собираем выходы
 	exits := keys(loc.Exits)
 	exitsStr := "можно пройти - " + strings.Join(exits, ", ")
 
 	return fmt.Sprintf("%s. %s", desc, exitsStr)
 }
 
-// Go пытается перейти в другую локацию
 func (g *Game) Go(direction string) string {
 	loc := g.Player.CurrentLocation
 	if nextLocName, ok := loc.Exits[direction]; ok {
@@ -244,7 +233,6 @@ func (g *Game) Go(direction string) string {
 	return fmt.Sprintf("нет пути в %s", direction)
 }
 
-// Take пытается взять предмет
 func (g *Game) Take(itemName string) string {
 	if _, ok := g.Player.Inventory["рюкзак"]; !ok {
 		return "некуда класть"
@@ -258,7 +246,6 @@ func (g *Game) Take(itemName string) string {
 	return "нет такого"
 }
 
-// Use пытается применить предмет
 func (g *Game) Use(itemName, target string) string {
 	if item, ok := g.Player.Inventory[itemName]; ok {
 		if result, ok := item.CanUseOn[target]; ok {
@@ -272,7 +259,6 @@ func (g *Game) Use(itemName, target string) string {
 	return fmt.Sprintf("нет предмета в инвентаре - %s", itemName)
 }
 
-// Wear надевает предмет (например, рюкзак)
 func (g *Game) Wear(itemName string) string {
 	loc := g.Player.CurrentLocation
 	if item, ok := loc.Items[itemName]; ok && itemName == "рюкзак" {
@@ -283,7 +269,6 @@ func (g *Game) Wear(itemName string) string {
 	return "нет такого"
 }
 
-// HandleCommand обрабатывает команду игрока
 func (g *Game) HandleCommand(command string) string {
 	words := strings.Split(strings.ToLower(command), " ")
 	if len(words) == 0 {
@@ -313,13 +298,10 @@ func (g *Game) HandleCommand(command string) string {
 	return "неизвестная команда"
 }
 
-// keys возвращает ключи карты в заданном порядке
 func keys(m map[string]string) []string {
-	// Определяем желаемый порядок локаций
 	desiredOrder := []string{"кухня", "комната", "улица", "коридор", "домой"}
 	result := []string{}
 
-	// Добавляем ключи в порядке desiredOrder, если они есть в карте
 	for _, key := range desiredOrder {
 		if _, ok := m[key]; ok {
 			result = append(result, key)
