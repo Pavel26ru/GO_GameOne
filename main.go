@@ -7,34 +7,42 @@ import (
 	"strings"
 )
 
-// Инвентарь
+// Item представляет предмет в игре
 type Item struct {
 	Name        string
 	Description string
 	CanTake     bool
-	CanUseOn    map[string]string
+	CanUseOn    map[string]string      // Возможные цели применения и результат
+	DisplayName string                 // Как предмет отображается в описании
+	OnUseEffect map[string]func(*Game) // Эффект при использовании предмета на цель
 }
 
-// Локация
+// Location представляет локацию
 type Location struct {
-	Name        string
-	Description string
-	Items       map[string]*Item
-	Exits       map[string]string
+	Name              string
+	Description       string
+	AltDescription    string // Альтернативное описание (например, для кухни, когда рюкзак надет)
+	GoDescription     string // Описание при переходе в локацию
+	Items             map[string]*Item
+	Exits             map[string]string
+	EmptyDescription  string // Описание, если нет предметов
+	RequiresCondition string // Условие для входа в локацию (например, "doorOpen")
 }
 
+// Player представляет игрока
 type Player struct {
 	CurrentLocation *Location
 	Inventory       map[string]*Item
 }
 
-// Состояние игры
+// Game представляет состояние игры
 type Game struct {
 	Locations   map[string]*Location
 	Player      *Player
 	GlobalFlags map[string]bool
 }
 
+// gameCase для тестов
 type gameCase struct {
 	step    int
 	command string
@@ -42,8 +50,8 @@ type gameCase struct {
 }
 
 var game0cases = [][]gameCase{
-	{
-		{1, "осмотреться", "ты находишься на кухне, на столе: чай, надо собрать рюкзак и идти в универ. можно пройти - коридор"},
+	[]gameCase{
+		{1, "осмотреться", "ты находишься на кухне, на столе: чай, надо собрать рюкзак и идти в univer. можно пройти - коридор"},
 		{2, "идти коридор", "ничего интересного. можно пройти - кухня, комната, улица"},
 		{3, "идти комната", "ты в своей комнате. можно пройти - коридор"},
 		{4, "осмотреться", "на столе: ключи, конспекты, на стуле: рюкзак. можно пройти - коридор"},
@@ -54,8 +62,8 @@ var game0cases = [][]gameCase{
 		{9, "применить ключи дверь", "дверь открыта"},
 		{11, "идти улица", "на улице весна. можно пройти - домой"},
 	},
-	{
-		{1, "осмотреться", "ты находишься на кухне, на столе: чай, надо собрать рюкзак и идти в универ. можно пройти - коридор"},
+	[]gameCase{
+		{1, "осмотреться", "ты находишься на кухне, на столе: чай, надо собрать рюкзак и идти в univer. можно пройти - коридор"},
 		{2, "завтракать", "неизвестная команда"},
 		{3, "идти комната", "нет пути в комната"},
 		{4, "идти коридор", "ничего интересного. можно пройти - кухня, комната, улица"},
@@ -73,7 +81,7 @@ var game0cases = [][]gameCase{
 		{16, "осмотреться", "пустая комната. можно пройти - коридор"},
 		{17, "идти коридор", "ничего интересного. можно пройти - кухня, комната, улица"},
 		{18, "идти кухня", "кухня, ничего интересного. можно пройти - коридор"},
-		{19, "осмотреться", "ты находишься на кухне, на столе: чай, надо идти в универ. можно пройти - коридор"},
+		{19, "осмотреться", "ты находишься на кухне, на столе: чай, надо идти в univer. можно пройти - коридор"},
 		{20, "идти коридор", "ничего интересного. можно пройти - кухня, комната, улица"},
 		{21, "идти улица", "дверь закрыта"},
 		{22, "применить ключи дверь", "дверь открыта"},
@@ -83,38 +91,82 @@ var game0cases = [][]gameCase{
 	},
 }
 
+// NewGame инициализирует игру
 func initGame() *Game {
 	items := map[string]*Item{
-		"рюкзак":    {Name: "рюкзак", Description: "рюкзак для вещей", CanTake: true},
-		"ключи":     {Name: "ключи", Description: "ключи от двери", CanTake: true, CanUseOn: map[string]string{"дверь": "дверь открыта", "шкаф": "не к чему применить"}},
-		"конспекты": {Name: "конспекты", Description: "учебные конспекты", CanTake: true},
-		"чай":       {Name: "чай", Description: "чашка чая", CanTake: true},
+		"рюкзак": {
+			Name:        "рюкзак",
+			Description: "рюкзак для вещей",
+			CanTake:     true,
+			DisplayName: "на стуле: рюкзак",
+			CanUseOn:    map[string]string{},
+			OnUseEffect: map[string]func(*Game){},
+		},
+		"ключи": {
+			Name:        "ключи",
+			Description: "ключи от двери",
+			CanTake:     true,
+			CanUseOn:    map[string]string{"дверь": "дверь открыта", "шкаф": "не к чему применить"},
+			DisplayName: "ключи",
+			OnUseEffect: map[string]func(*Game){
+				"дверь": func(g *Game) { g.GlobalFlags["doorOpen"] = true },
+			},
+		},
+		"конспекты": {
+			Name:        "конспекты",
+			Description: "учебные конспекты",
+			CanTake:     true,
+			DisplayName: "конспекты",
+			CanUseOn:    map[string]string{},
+			OnUseEffect: map[string]func(*Game){},
+		},
+		"чай": {
+			Name:        "чай",
+			Description: "чашка чая",
+			CanTake:     true,
+			DisplayName: "чай",
+			CanUseOn:    map[string]string{},
+			OnUseEffect: map[string]func(*Game){},
+		},
 	}
 
 	locations := map[string]*Location{
 		"кухня": {
-			Name:        "кухня",
-			Description: "ты находишься на кухне, на столе: чай, надо собрать рюкзак и идти в универ",
-			Items:       map[string]*Item{"чай": items["чай"]},
-			Exits:       map[string]string{"коридор": "коридор"},
+			Name:              "кухня",
+			Description:       "ты находишься на кухне, на столе: чай, надо собрать рюкзак и идти в univer",
+			AltDescription:    "ты находишься на кухне, на столе: чай, надо идти в univer",
+			GoDescription:     "кухня, ничего интересного",
+			Items:             map[string]*Item{"чай": items["чай"]},
+			Exits:             map[string]string{"коридор": "коридор"},
+			EmptyDescription:  "кухня, ничего интересного",
+			RequiresCondition: "",
 		},
 		"коридор": {
-			Name:        "коридор",
-			Description: "ничего интересного",
-			Items:       map[string]*Item{},
-			Exits:       map[string]string{"кухня": "кухня", "комната": "комната", "улица": "улица"},
+			Name:              "коридор",
+			Description:       "ничего интересного",
+			GoDescription:     "ничего интересного",
+			Items:             map[string]*Item{},
+			Exits:             map[string]string{"кухня": "кухня", "комната": "комната", "улица": "улица"},
+			EmptyDescription:  "ничего интересного",
+			RequiresCondition: "",
 		},
 		"комната": {
-			Name:        "комната",
-			Description: "ты в своей комнате",
-			Items:       map[string]*Item{"рюкзак": items["рюкзак"], "ключи": items["ключи"], "конспекты": items["конспекты"]},
-			Exits:       map[string]string{"коридор": "коридор"},
+			Name:              "комната",
+			Description:       "ты в своей комнате",
+			GoDescription:     "ты в своей комнате",
+			Items:             map[string]*Item{"рюкзак": items["рюкзак"], "ключи": items["ключи"], "конспекты": items["конспекты"]},
+			Exits:             map[string]string{"коридор": "коридор"},
+			EmptyDescription:  "пустая комната",
+			RequiresCondition: "",
 		},
 		"улица": {
-			Name:        "улица",
-			Description: "на улице весна",
-			Items:       map[string]*Item{},
-			Exits:       map[string]string{"домой": "коридор"},
+			Name:              "улица",
+			Description:       "на улице весна",
+			GoDescription:     "на улице весна",
+			Items:             map[string]*Item{},
+			Exits:             map[string]string{"домой": "коридор"},
+			EmptyDescription:  "на улице весна",
+			RequiresCondition: "doorOpen",
 		},
 	}
 
@@ -130,54 +182,68 @@ func initGame() *Game {
 	}
 }
 
+// Look осматривает текущую локацию
 func (g *Game) Look() string {
 	loc := g.Player.CurrentLocation
-	if loc.Name == "кухня" {
-		if _, ok := g.Player.Inventory["рюкзак"]; ok {
-			return "ты находишься на кухне, на столе: чай, надо идти в универ. можно пройти - коридор"
-		}
-		return loc.Description + ". можно пройти - коридор"
+
+	// Собираем предметы
+	items := []string{}
+	for _, item := range loc.Items {
+		items = append(items, item.DisplayName)
 	}
-	if loc.Name == "комната" {
-		items := []string{}
-		if _, ok := loc.Items["ключи"]; ok {
-			items = append(items, "ключи")
+
+	// Формируем описание
+	var desc string
+	if len(items) == 0 {
+		desc = loc.EmptyDescription
+	} else if loc.Name == "комната" {
+		nonBackpack := []string{}
+		hasBackpack := false
+		for _, item := range items {
+			if item == "на стуле: рюкзак" {
+				hasBackpack = true
+			} else {
+				nonBackpack = append(nonBackpack, item)
+			}
 		}
-		if _, ok := loc.Items["конспекты"]; ok {
-			items = append(items, "конспекты")
+		if len(nonBackpack) > 0 {
+			desc = "на столе: " + strings.Join(nonBackpack, ", ")
+			if hasBackpack {
+				desc += ", на стуле: рюкзак"
+			}
+		} else if hasBackpack {
+			desc = "на стуле: рюкзак"
 		}
-		if _, ok := loc.Items["рюкзак"]; ok {
-			items = append(items, "на стуле: рюкзак")
+	} else {
+		if _, ok := g.Player.Inventory["рюкзак"]; ok && loc.AltDescription != "" {
+			desc = loc.AltDescription
+		} else {
+			desc = loc.Description
 		}
-		if len(items) == 0 {
-			return "пустая комната. можно пройти - коридор"
-		}
-		itemsStr := strings.Join(items, ", ")
-		if len(items) > 1 && items[len(items)-1] == "на стуле: рюкзак" {
-			itemsStr = "на столе: " + strings.Join(items[:len(items)-1], ", ") + ", на стуле: рюкзак"
-		} else if len(items) >= 1 && items[len(items)-1] != "на стуле: рюкзак" {
-			itemsStr = "на столе: " + itemsStr
-		}
-		return itemsStr + ". можно пройти - коридор"
 	}
-	return loc.Description + ". можно пройти - " + strings.Join(keys(loc.Exits), ", ")
+
+	// Собираем выходы
+	exits := keys(loc.Exits)
+	exitsStr := "можно пройти - " + strings.Join(exits, ", ")
+
+	return fmt.Sprintf("%s. %s", desc, exitsStr)
 }
 
+// Go пытается перейти в другую локацию
 func (g *Game) Go(direction string) string {
 	loc := g.Player.CurrentLocation
 	if nextLocName, ok := loc.Exits[direction]; ok {
-		if nextLocName == "улица" && !g.GlobalFlags["doorOpen"] {
+		nextLoc := g.Locations[nextLocName]
+		if nextLoc.RequiresCondition != "" && !g.GlobalFlags[nextLoc.RequiresCondition] {
 			return "дверь закрыта"
 		}
-		g.Player.CurrentLocation = g.Locations[nextLocName]
-		if nextLocName == "кухня" {
-			return "кухня, ничего интересного. можно пройти - коридор"
-		}
-		return g.Locations[nextLocName].Description + ". можно пройти - " + strings.Join(keys(g.Locations[nextLocName].Exits), ", ")
+		g.Player.CurrentLocation = nextLoc
+		return nextLoc.GoDescription + ". можно пройти - " + strings.Join(keys(nextLoc.Exits), ", ")
 	}
 	return fmt.Sprintf("нет пути в %s", direction)
 }
 
+// Take пытается взять предмет
 func (g *Game) Take(itemName string) string {
 	if _, ok := g.Player.Inventory["рюкзак"]; !ok {
 		return "некуда класть"
@@ -191,11 +257,12 @@ func (g *Game) Take(itemName string) string {
 	return "нет такого"
 }
 
+// Use пытается применить предмет
 func (g *Game) Use(itemName, target string) string {
 	if item, ok := g.Player.Inventory[itemName]; ok {
 		if result, ok := item.CanUseOn[target]; ok {
-			if itemName == "ключи" && target == "дверь" {
-				g.GlobalFlags["doorOpen"] = true
+			if effect, ok := item.OnUseEffect[target]; ok {
+				effect(g)
 			}
 			return result
 		}
@@ -204,6 +271,7 @@ func (g *Game) Use(itemName, target string) string {
 	return fmt.Sprintf("нет предмета в инвентаре - %s", itemName)
 }
 
+// Wear надевает предмет (например, рюкзак)
 func (g *Game) Wear(itemName string) string {
 	loc := g.Player.CurrentLocation
 	if item, ok := loc.Items[itemName]; ok && itemName == "рюкзак" {
@@ -214,6 +282,7 @@ func (g *Game) Wear(itemName string) string {
 	return "нет такого"
 }
 
+// HandleCommand обрабатывает команду игрока
 func (g *Game) HandleCommand(command string) string {
 	words := strings.Split(strings.ToLower(command), " ")
 	if len(words) == 0 {
@@ -243,11 +312,19 @@ func (g *Game) HandleCommand(command string) string {
 	return "неизвестная команда"
 }
 
+// keys возвращает ключи карты в заданном порядке
 func keys(m map[string]string) []string {
+	// Определяем желаемый порядок локаций
+	desiredOrder := []string{"кухня", "комната", "улица", "коридор", "домой"}
 	result := []string{}
-	for k := range m {
-		result = append(result, k)
+
+	// Добавляем ключи в порядке desiredOrder, если они есть в карте
+	for _, key := range desiredOrder {
+		if _, ok := m[key]; ok {
+			result = append(result, key)
+		}
 	}
+
 	return result
 }
 
